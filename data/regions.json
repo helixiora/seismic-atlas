@@ -1,0 +1,191 @@
+{
+  "default": "turkey",
+  "regions": {
+    "turkey": {
+      "label": "Türkiye",
+      "title": "Anatolian Fault",
+      "bbox": [25.0, 45.0, 35.0, 42.5],
+      "ref": [35.0, 39.0],
+      "minMag": 3.5,
+      "waveMinMag": 4.7,
+      "legend": { "mags": [3.5, 5.5, 7.5], "faults": "GEM strike-slip, by slip rate" },
+      "build": {
+        "prebuilt": true,
+        "grid": [3200, 1200],
+        "zoom": 8
+      },
+      "cities": [
+        { "name": "İstanbul", "lon": 28.9784, "lat": 41.0082, "rank": 1 },
+        { "name": "İzmit", "lon": 29.9408, "lat": 40.7654, "rank": 3 },
+        { "name": "Bolu", "lon": 31.6096, "lat": 40.7350, "rank": 3 },
+        { "name": "Ankara", "lon": 32.8597, "lat": 39.9334, "rank": 1 },
+        { "name": "İzmir", "lon": 27.1428, "lat": 38.4237, "rank": 2 },
+        { "name": "Erzincan", "lon": 39.4900, "lat": 39.7500, "rank": 2 },
+        { "name": "Karlıova", "lon": 41.0167, "lat": 39.2833, "rank": 2, "sub": "NAF–EAF junction" },
+        { "name": "Malatya", "lon": 38.3095, "lat": 38.3552, "rank": 2 },
+        { "name": "Kahramanmaraş", "lon": 36.9226, "lat": 37.5753, "rank": 2 },
+        { "name": "Antakya", "lon": 36.1590, "lat": 36.2023, "rank": 2 },
+        { "name": "Van", "lon": 43.38, "lat": 38.49, "rank": 2 },
+        { "name": "Trabzon", "lon": 39.7168, "lat": 41.0015, "rank": 3 },
+        { "name": "Sivas", "lon": 37.0179, "lat": 39.7477, "rank": 3 }
+      ],
+      "seas": [
+        { "name": "Black Sea", "lon": 34.2, "lat": 42.05 },
+        { "name": "Aegean Sea", "lon": 25.9, "lat": 38.7 },
+        { "name": "Mediterranean Sea", "lon": 32.0, "lat": 35.55 },
+        { "name": "Sea of Marmara", "lon": 28.1, "lat": 40.72, "small": true }
+      ],
+      "faultNames": [
+        { "name": "North Anatolian Fault", "lon": 35.4, "lat": 41.2 },
+        { "name": "East Anatolian Fault", "lon": 37.9, "lat": 38.62 }
+      ],
+      "notable": [
+        { "d": "1912-08-09", "min": 7.0, "name": "Ganos–Mürefte" },
+        { "d": "1939-12-26", "min": 7.5, "name": "Erzincan" },
+        { "d": "1943-11-26", "min": 7.3, "name": "Tosya–Ladik" },
+        { "d": "1944-02-01", "min": 7.4, "name": "Bolu–Gerede" },
+        { "d": "1953-03-18", "min": 7.0, "name": "Yenice–Gönen" },
+        { "d": "1967-07-22", "min": 7.0, "name": "Mudurnu Valley" },
+        { "d": "1970-03-28", "min": 7.0, "name": "Gediz" },
+        { "d": "1976-11-24", "min": 7.0, "name": "Çaldıran" },
+        { "d": "1999-08-17", "min": 7.4, "name": "İzmit (Kocaeli)" },
+        { "d": "1999-11-12", "min": 7.0, "name": "Düzce" },
+        { "d": "2011-10-23", "min": 7.0, "name": "Van" },
+        { "d": "2023-02-06", "min": 7.7, "name": "Pazarcık · Kahramanmaraş" },
+        { "d": "2023-02-06", "min": 7.4, "max": 7.6, "name": "Elbistan" }
+      ]
+    },
+
+    "california": {
+      "label": "California",
+      "title": "San Andreas Fault",
+      "bbox": [-125.5, -113.5, 32.0, 42.5],
+      "minMag": 3.5,
+      "waveMinMag": 4.7,
+      "legend": { "mags": [3.5, 5.5, 7.5], "faults": "GEM active faults, by slip rate" },
+      "build": {
+        "grid": [2000, 2000],
+        "zoom": 8,
+        "maxDepth": 200,
+        "faults": {
+          "minLenKm": 12,
+          "minRate": 0.4,
+          "trunk": [
+            { "system": "SAF", "nameContains": "San Andreas" },
+            { "system": "TRENCH", "slipType": "Subduction_Thrust" }
+          ]
+        },
+        "climate": { "wetBias": -0.05, "wetLatStart": 38.0, "wetLatGain": 0.2, "wetLatMax": 0.3 }
+      },
+      "cities": [
+        { "name": "Los Angeles", "lon": -118.2437, "lat": 34.0522, "rank": 1 },
+        { "name": "San Francisco", "lon": -122.4194, "lat": 37.7749, "rank": 1 },
+        { "name": "San Diego", "lon": -117.1611, "lat": 32.7157, "rank": 2 },
+        { "name": "Las Vegas", "lon": -115.1398, "lat": 36.1699, "rank": 2 },
+        { "name": "Sacramento", "lon": -121.4944, "lat": 38.5816, "rank": 2 },
+        { "name": "San José", "lon": -121.8863, "lat": 37.3382, "rank": 3 },
+        { "name": "Fresno", "lon": -119.7871, "lat": 36.7378, "rank": 3 },
+        { "name": "Bakersfield", "lon": -119.0187, "lat": 35.3733, "rank": 3 },
+        { "name": "Palm Springs", "lon": -116.5453, "lat": 33.8303, "rank": 3 },
+        { "name": "Eureka", "lon": -124.1637, "lat": 40.8021, "rank": 3 },
+        { "name": "Reno", "lon": -119.8138, "lat": 39.5296, "rank": 3 },
+        { "name": "Mexicali", "lon": -115.4523, "lat": 32.6519, "rank": 3 },
+        { "name": "Parkfield", "lon": -120.4329, "lat": 35.8997, "rank": 3 },
+        { "name": "Ridgecrest", "lon": -117.6709, "lat": 35.6225, "rank": 3 }
+      ],
+      "seas": [
+        { "name": "Pacific Ocean", "lon": -124.2, "lat": 36.3 },
+        { "name": "Salton Sea", "lon": -115.85, "lat": 33.3, "small": true }
+      ],
+      "faultNames": [
+        { "name": "San Andreas Fault", "lon": -120.75, "lat": 35.55 },
+        { "name": "Garlock Fault", "lon": -117.3, "lat": 35.2 },
+        { "name": "Cascadia Subduction Zone", "lon": -125.0, "lat": 42.0 }
+      ],
+      "notable": [
+        {"d": "1906-04-18", "min": 7.5, "name": "San Francisco"},
+        {"d": "1940-05-19", "min": 6.8, "name": "Imperial Valley"},
+        {"d": "1952-07-21", "min": 7.0, "name": "Kern County"},
+        {"d": "1954-12-16", "min": 7.0, "name": "Fairview Peak · Nevada"},
+        {"d": "1971-02-09", "min": 6.5, "name": "San Fernando"},
+        {"d": "1989-10-18", "min": 6.8, "name": "Loma Prieta"},
+        {"d": "1992-04-25", "min": 7.0, "name": "Cape Mendocino"},
+        {"d": "1992-06-28", "min": 7.0, "name": "Landers"},
+        {"d": "1994-01-17", "min": 6.6, "name": "Northridge"},
+        {"d": "1999-10-16", "min": 7.0, "name": "Hector Mine"},
+        {"d": "2003-12-22", "min": 6.4, "name": "San Simeon"},
+        {"d": "2004-09-28", "min": 5.9, "name": "Parkfield"},
+        {"d": "2010-04-04", "min": 7.0, "name": "El Mayor–Cucapah"},
+        {"d": "2014-08-24", "min": 5.9, "name": "South Napa"},
+        {"d": "2019-07-06", "min": 7.0, "name": "Ridgecrest"},
+        {"d": "2024-12-05", "min": 6.9, "name": "Offshore Cape Mendocino"}
+      ]
+    },
+
+    "japan": {
+      "label": "Japan",
+      "title": "Japan Trench",
+      "bbox": [128.0, 147.5, 30.0, 46.0],
+      "minMag": 4.5,
+      "waveMinMag": 5.6,
+      "legend": { "mags": [4.5, 6.5, 8.5], "faults": "GEM active faults & trenches" },
+      "note": "Events deeper than 200 km are not shown.",
+      "build": {
+        "grid": [1900, 1970],
+        "zoom": 8,
+        "maxDepth": 200,
+        "faults": {
+          "minLenKm": 25,
+          "minRate": 0,
+          "trunk": [{ "system": "TRENCH", "slipType": "Subduction_Thrust" }]
+        },
+        "climate": { "wetBias": 0.55, "wetLatStart": 99, "wetLatGain": 0, "wetLatMax": 0 }
+      },
+      "cities": [
+        { "name": "Tōkyō", "lon": 139.6917, "lat": 35.6895, "rank": 1 },
+        { "name": "Ōsaka", "lon": 135.5023, "lat": 34.6937, "rank": 1 },
+        { "name": "Nagoya", "lon": 136.9066, "lat": 35.1815, "rank": 2 },
+        { "name": "Sapporo", "lon": 141.3545, "lat": 43.0618, "rank": 2 },
+        { "name": "Sendai", "lon": 140.8719, "lat": 38.2682, "rank": 2 },
+        { "name": "Fukuoka", "lon": 130.4017, "lat": 33.5904, "rank": 2 },
+        { "name": "Hiroshima", "lon": 132.4553, "lat": 34.3853, "rank": 3 },
+        { "name": "Kōbe", "lon": 135.1955, "lat": 34.6901, "rank": 3 },
+        { "name": "Niigata", "lon": 139.0236, "lat": 37.9162, "rank": 3 },
+        { "name": "Kumamoto", "lon": 130.7417, "lat": 32.8032, "rank": 3 },
+        { "name": "Kagoshima", "lon": 130.5571, "lat": 31.5966, "rank": 3 },
+        { "name": "Hakodate", "lon": 140.7288, "lat": 41.7687, "rank": 3 },
+        { "name": "Shizuoka", "lon": 138.3827, "lat": 34.9756, "rank": 3 },
+        { "name": "Wajima", "lon": 136.8997, "lat": 37.3903, "rank": 3 }
+      ],
+      "seas": [
+        { "name": "Sea of Japan", "lon": 133.8, "lat": 40.2 },
+        { "name": "Pacific Ocean", "lon": 145.4, "lat": 34.6 },
+        { "name": "Sea of Okhotsk", "lon": 145.6, "lat": 45.4 },
+        { "name": "East China Sea", "lon": 128.9, "lat": 30.9 },
+        { "name": "Seto Inland Sea", "lon": 133.3, "lat": 34.05, "small": true }
+      ],
+      "faultNames": [
+        { "name": "Japan Trench", "lon": 144.1, "lat": 38.3 },
+        { "name": "Nankai Trough", "lon": 134.6, "lat": 32.3 },
+        { "name": "Kuril Trench", "lon": 146.2, "lat": 42.6 },
+        { "name": "Izu–Bonin Trench", "lon": 142.7, "lat": 31.2 }
+      ],
+      "notable": [
+        {"d": "1923-09-01", "min": 7.9, "name": "Great Kantō"},
+        {"d": "1933-03-02", "min": 8.0, "name": "Sanriku"},
+        {"d": "1944-12-07", "min": 8.0, "name": "Tōnankai"},
+        {"d": "1946-12-20", "min": 8.0, "name": "Nankai"},
+        {"d": "1952-03-04", "min": 8.0, "name": "Tokachi-oki"},
+        {"d": "1964-06-16", "min": 7.5, "name": "Niigata"},
+        {"d": "1968-05-16", "min": 8.0, "name": "Tokachi-oki · Aomori"},
+        {"d": "1993-07-12", "min": 7.5, "name": "Hokkaidō Nansei-oki"},
+        {"d": "1995-01-16", "min": 6.7, "name": "Kōbe (Hanshin)"},
+        {"d": "2003-09-25", "min": 8.0, "name": "Tokachi-oki"},
+        {"d": "2011-03-11", "min": 9.0, "name": "Tōhoku"},
+        {"d": "2016-04-15", "min": 6.9, "name": "Kumamoto"},
+        {"d": "2024-01-01", "min": 7.3, "name": "Noto Peninsula"},
+        {"d": "2025-12-08", "min": 7.5, "name": "Off Aomori"}
+      ]
+    }
+  }
+}

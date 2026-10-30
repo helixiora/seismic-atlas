@@ -2,33 +2,15 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import {
-  world, setTerrainData, BASE_RELIEF, SEABED_COMPRESS, V_SCALE, project, groundY,
+  world, setTerrainData, BASE_RELIEF, SEABED_COMPRESS, project,
 } from './projection.js';
 import { buildEnvironment, buildBackground, buildContactShadow, SUN_DIR } from './environment.js';
 import { Terrain, MAX_WAVES } from './terrain.js';
-import { Quakes, MS_PER_YEAR, depthColor } from './quakes.js';
-import { Overlays, buildFaults } from './overlays.js';
+import { Quakes, MS_PER_YEAR, depthColor, magRadius } from './quakes.js';
+import { Overlays, buildFaults, fmtLon, fmtLat } from './overlays.js';
 
 const $ = (id) => document.getElementById(id);
-
-// ---------------------------------------------------------------------------
-// Notable events (matched against the catalogue by date + magnitude window)
-// ---------------------------------------------------------------------------
-const NOTABLE = [
-  { d: '1912-08-09', min: 7.0, name: 'Ganos–Mürefte' },
-  { d: '1939-12-26', min: 7.5, name: 'Erzincan' },
-  { d: '1943-11-26', min: 7.3, name: 'Tosya–Ladik' },
-  { d: '1944-02-01', min: 7.4, name: 'Bolu–Gerede' },
-  { d: '1953-03-18', min: 7.0, name: 'Yenice–Gönen' },
-  { d: '1967-07-22', min: 7.0, name: 'Mudurnu Valley' },
-  { d: '1970-03-28', min: 7.0, name: 'Gediz' },
-  { d: '1976-11-24', min: 7.0, name: 'Çaldıran' },
-  { d: '1999-08-17', min: 7.4, name: 'İzmit (Kocaeli)' },
-  { d: '1999-11-12', min: 7.0, name: 'Düzce' },
-  { d: '2011-10-23', min: 7.0, name: 'Van' },
-  { d: '2023-02-06', min: 7.7, name: 'Pazarcık · Kahramanmaraş' },
-  { d: '2023-02-06', min: 7.4, max: 7.6, name: 'Elbistan' },
-];
+const FAST = location.search.includes('fast');
 
 // ---------------------------------------------------------------------------
 // Renderer / scene
@@ -53,10 +35,11 @@ scene.background = buildBackground();
 scene.fog = new THREE.FogExp2(0xe9edef, 0.0016);
 scene.environment = buildEnvironment(renderer);
 
-const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.5, 1500);
-const HOME_SURFACE = { pos: new THREE.Vector3(2, 76, 96), target: new THREE.Vector3(0, -2, 3) };
-const HOME_DEPTH = { pos: new THREE.Vector3(8, 40, 112), target: new THREE.Vector3(0, -7, 3) };
-const HOME = HOME_SURFACE;
+const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.5, 2400);
+// Camera presets are derived from the size of the active region (see frameRegion).
+let HOME_SURFACE = { pos: new THREE.Vector3(2, 76, 96), target: new THREE.Vector3(0, -2, 3) };
+let HOME_DEPTH = { pos: new THREE.Vector3(8, 40, 112), target: new THREE.Vector3(0, -7, 3) };
+let viewScale = 1;
 // Narrower windows need the camera further back to keep the whole map in frame.
 function framed(preset) {
   const aspect = Math.max(window.innerWidth, 320) / Math.max(window.innerHeight, 240);
@@ -86,6 +69,7 @@ sun.shadow.bias = -0.0006;
 sun.shadow.normalBias = 0.05;
 sun.shadow.radius = 3;
 scene.add(sun);
+scene.add(sun.target);
 scene.add(new THREE.HemisphereLight(0xdfeaff, 0xcfc7b5, 0.32));
 
 function updateViewOffset() {
@@ -103,8 +87,37 @@ window.addEventListener('resize', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Region-bound state (replaced whenever the region changes)
+// ---------------------------------------------------------------------------
+let REGIONS = {};
+let regionId = null;
+let region = null;
+let terrain = null;
+let quakes = null;
+let faultMesh = null;
+let contact = null;
+let quakeData = [];
+let notable = [];
+let N = 0, minMs = 0, maxMs = 1;
+let y0 = 0, y1 = 0, yearMax = new Float32Array(0);
+let sparkMin = 3.4, sparkMax = 8.0;
+
+const overlays = new Overlays(scene);
+const faultUniforms = { uFlow: { value: 0 } };
+
+const state = {
+  ms: 0, playing: false, speed: 2, depthTarget: 1, depthMix: 1,
+  revealed: 0, prevRevealed: 0, relief: 1,
+};
+let waves = [];
+let intro = null;
+let homeTween = null;
+let switching = false;
+
+// ---------------------------------------------------------------------------
 // Loading
 // ---------------------------------------------------------------------------
+const loader = $('loader');
 const loaderBar = $('loader-bar');
 const loaderText = $('loader-text');
 const progress = { meta: 0, heights: 0, albedo: 0, data: 0 };
@@ -120,6 +133,7 @@ async function fetchJSON(url) { const r = await fetch(url); if (!r.ok) throw new
 // Elevation arrives as a lossless PNG: R/G hold (metres + 8192) as a 16-bit value, north-up.
 async function fetchHeights(url, key, meta) {
   const res = await fetch(url);
+  if (!res.ok) throw new Error(url);
   const blob = await res.blob();
   progress[key] = 0.6; reportProgress();
   const bmp = await createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
@@ -148,68 +162,30 @@ function loadTexture(url) {
   });
 }
 
-reportProgress('Loading terrain…');
-const meta = await fetchJSON('data/terrain_meta.json');
-progress.meta = 1; reportProgress();
-const [heights, albedo, rawQuakes, faultSegments] = await Promise.all([
-  fetchHeights('data/terrain_h.png', 'heights', meta),
-  loadTexture('data/terrain_albedo.jpg').then((t) => { progress.albedo = 1; reportProgress('Shading relief…'); return t; }),
-  fetchJSON('data/earthquakes.json'),
-  fetchJSON('data/faults.json').then((f) => { progress.data = 1; reportProgress(); return f; }),
-]);
-
-setTerrainData(meta, heights);
-
-albedo.colorSpace = THREE.SRGBColorSpace;
-albedo.anisotropy = renderer.capabilities.getMaxAnisotropy();
-albedo.minFilter = THREE.LinearMipmapLinearFilter;
-albedo.generateMipmaps = true;
-const albedoPixels = (() => {
-  const img = albedo.image;
-  const c = document.createElement('canvas');
-  c.width = img.width; c.height = img.height;
-  const g = c.getContext('2d', { willReadFrequently: true });
-  g.drawImage(img, 0, 0);
-  return g.getImageData(0, 0, c.width, c.height);
-})();
+async function loadAssets(id) {
+  for (const k of Object.keys(progress)) progress[k] = 0;
+  const base = `data/${id}`;
+  reportProgress(`Loading ${REGIONS[id].label}…`);
+  const meta = await fetchJSON(`${base}/terrain_meta.json`);
+  progress.meta = 1; reportProgress();
+  const [heights, albedo, rawQuakes, faultSegments] = await Promise.all([
+    fetchHeights(`${base}/terrain_h.png`, 'heights', meta),
+    loadTexture(`${base}/terrain_albedo.jpg`).then((t) => { progress.albedo = 1; reportProgress('Shading relief…'); return t; }),
+    fetchJSON(`${base}/earthquakes.json`),
+    fetchJSON(`${base}/faults.json`).then((f) => { progress.data = 1; reportProgress(); return f; }),
+  ]);
+  return { meta, heights, albedo, rawQuakes, faultSegments };
+}
 
 // ---------------------------------------------------------------------------
-// World
+// Building a region
 // ---------------------------------------------------------------------------
-reportProgress('Building the 3D map…');
-await new Promise((r) => setTimeout(r, 30));
-
-const terrain = new Terrain({ scene, albedo, albedoPixels, maxAnisotropy: renderer.capabilities.getMaxAnisotropy() });
-const overlays = new Overlays(scene);
-const faultUniforms = { uFlow: { value: 0 } };
-let faultMesh = null;
 function rebuildFaults() {
   if (faultMesh) { scene.remove(faultMesh); faultMesh.geometry.dispose(); faultMesh.material.dispose(); }
   faultMesh = buildFaults(faultSegments, faultUniforms);
   scene.add(faultMesh);
 }
-rebuildFaults();
-
-const quakeData = rawQuakes
-  .map((q) => ({ ...q, ms: Date.parse(q.t) }))
-  .filter((q) => !Number.isNaN(q.ms))
-  .sort((a, b) => a.ms - b.ms);
-const quakes = new Quakes({ scene, quakes: quakeData });
-const N = quakes.N;
-const minMs = quakes.minMs, maxMs = quakes.maxMs;
-
-const contact = buildContactShadow(world.extent.xMax - world.extent.xMin, world.extent.zMax - world.extent.zMin, world.baseY - 0.4);
-scene.add(contact);
-
-// Notable events resolved against the catalogue.
-const notable = NOTABLE.map((n) => {
-  let best = -1;
-  for (let i = 0; i < N; i++) {
-    const q = quakeData[i];
-    if (q.t.startsWith(n.d) && q.mag >= n.min && q.mag <= (n.max ?? 99) && (best < 0 || q.mag > quakeData[best].mag)) best = i;
-  }
-  return best < 0 ? null : { ...n, i: best, q: quakeData[best], shownAt: -1e9, obj: null };
-}).filter(Boolean);
+let faultSegments = [];
 
 function buildCallouts() {
   for (const n of notable) {
@@ -225,15 +201,153 @@ function buildCallouts() {
     n.obj = o;
   }
 }
-buildCallouts();
+
+// Camera presets, shadow frustum and fog follow the size of the region.
+// Constants are the Türkiye framing (115 x 55 units), scaled up for bigger maps.
+function frameRegion() {
+  const { xMin, xMax, zMin, zMax } = world.extent;
+  const w = xMax - xMin, d = zMax - zMin;
+  const cx = (xMin + xMax) / 2, cz = (zMin + zMax) / 2;
+  viewScale = Math.max(w / 115, (d * 0.77 + 36) / 78);
+  const s = viewScale;
+  HOME_SURFACE = {
+    target: new THREE.Vector3(cx, -2, cz + s),
+    pos: new THREE.Vector3(cx + 2 * s, -2 + 78 * s, cz + s + 93 * s),
+  };
+  HOME_DEPTH = {
+    target: new THREE.Vector3(cx, -7, cz + s),
+    pos: new THREE.Vector3(cx + 8 * s, -7 + 47 * s, cz + s + 109 * s),
+  };
+  controls.maxDistance = 520 * s;
+  scene.fog.density = 0.0016 / s;
+
+  const half = 0.5 * Math.hypot(w, d) + 28;
+  sun.target.position.set(cx, 0, cz);
+  sun.position.copy(SUN_DIR).multiplyScalar(180).add(sun.target.position);
+  Object.assign(sun.shadow.camera, { left: -half, right: half, top: half * 0.78, bottom: -half * 0.78 });
+  sun.shadow.camera.updateProjectionMatrix();
+}
+
+function prepareTimeline() {
+  y0 = new Date(minMs).getUTCFullYear();
+  y1 = new Date(maxMs).getUTCFullYear();
+  yearMax = new Float32Array(y1 - y0 + 1);
+  let top = 0;
+  for (const q of quakeData) {
+    const y = new Date(q.ms).getUTCFullYear() - y0;
+    if (q.mag > yearMax[y]) yearMax[y] = q.mag;
+    top = Math.max(top, q.mag);
+  }
+  sparkMin = region.minMag - 0.1;
+  sparkMax = Math.max(8.0, top + 0.2);
+  const decades = $('decades');
+  decades.replaceChildren();
+  decades.style.position = 'relative';
+  decades.style.height = '14px';
+  for (let y = Math.ceil(y0 / 10) * 10; y <= y1; y += 10) {
+    const el = document.createElement('span');
+    el.textContent = y;
+    el.style.cssText = `position:absolute;transform:translateX(-50%);left:${((Date.UTC(y, 0, 1) - minMs) / (maxMs - minMs)) * 100}%`;
+    decades.appendChild(el);
+  }
+}
+
+const dotPx = (m) => Math.round(7 + (magRadius(m) - 0.22) * 9.9);
+
+function renderRegionUI() {
+  document.title = `${region.title} — Seismic Atlas`;
+  $('brand-title').innerHTML = `${region.title} <span>Seismic Atlas</span>`;
+  $('subtitle').textContent = `M ≥ ${region.minMag} earthquakes, ${y0} – ${y1} · USGS ANSS · SRTM relief & bathymetry`;
+  $('mag-row').innerHTML = region.legend.mags
+    .map((m) => `<span><i class="dot" style="--s:${dotPx(m)}px"></i>${m.toFixed(1)}</span>`).join('');
+  $('fault-legend').textContent = region.legend.faults;
+  $('region-note').textContent = region.note || '';
+  $('region-note').hidden = !region.note;
+  $('reset-btn').title = `Back to ${y0}`;
+  for (const b of $('region-seg').querySelectorAll('button')) b.classList.toggle('on', b.dataset.region === regionId);
+}
+
+function buildRegion(id, assets) {
+  // Tear down the previous region.
+  if (terrain) terrain.dispose();
+  if (quakes) quakes.dispose();
+  if (contact) { scene.remove(contact); contact.geometry.dispose(); contact.material.map.dispose(); contact.material.dispose(); }
+  for (const n of notable) if (n.obj) scene.remove(n.obj);
+  waves = [];
+
+  regionId = id;
+  region = REGIONS[id];
+  const { meta, heights, albedo, rawQuakes } = assets;
+  faultSegments = assets.faultSegments;
+  setTerrainData(meta, heights, region.ref);
+  world.relief = BASE_RELIEF * state.relief;
+
+  albedo.colorSpace = THREE.SRGBColorSpace;
+  albedo.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  albedo.minFilter = THREE.LinearMipmapLinearFilter;
+  albedo.generateMipmaps = true;
+  const albedoPixels = (() => {
+    const img = albedo.image;
+    const c = document.createElement('canvas');
+    c.width = img.width; c.height = img.height;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.drawImage(img, 0, 0);
+    return g.getImageData(0, 0, c.width, c.height);
+  })();
+
+  terrain = new Terrain({ scene, albedo, albedoPixels, maxAnisotropy: renderer.capabilities.getMaxAnisotropy() });
+  terrain.setXray(state.depthMix);
+  frameRegion();
+  overlays.setRegion(region, viewScale);
+  rebuildFaults();
+
+  quakeData = rawQuakes
+    .map((q) => ({ ...q, ms: Date.parse(q.t) }))
+    .filter((q) => !Number.isNaN(q.ms))
+    .sort((a, b) => a.ms - b.ms);
+  quakes = new Quakes({ scene, quakes: quakeData });
+  quakes.setFade($('fade-checkbox').checked);
+  quakes.setDepthMix(state.depthMix);
+  N = quakes.N;
+  minMs = quakes.minMs;
+  maxMs = quakes.maxMs;
+
+  contact = buildContactShadow(world.extent.xMax - world.extent.xMin, world.extent.zMax - world.extent.zMin, world.baseY - 0.4);
+  contact.position.x = (world.extent.xMin + world.extent.xMax) / 2;
+  contact.position.z = (world.extent.zMin + world.extent.zMax) / 2;
+  scene.add(contact);
+
+  // Notable events resolved against the catalogue (date + magnitude window).
+  notable = (region.notable || []).map((n) => {
+    let best = -1;
+    for (let i = 0; i < N; i++) {
+      const q = quakeData[i];
+      if (q.t.startsWith(n.d) && q.mag >= n.min && q.mag <= (n.max ?? 99) && (best < 0 || q.mag > quakeData[best].mag)) best = i;
+    }
+    return best < 0 ? null : { ...n, i: best, q: quakeData[best], shownAt: -1e9, obj: null };
+  }).filter(Boolean);
+  buildCallouts();
+  syncLabelVisibility();
+
+  prepareTimeline();
+  renderRegionUI();
+  $('event-card').classList.add('hidden');
+  applyTime(minMs);
+}
+
+// Camera swoops in from high above: used on first load and after every region change.
+function startIntro() {
+  const home = state.depthTarget ? HOME_DEPTH : HOME_SURFACE;
+  const c = home.target;
+  homeTween = null;
+  controls.target.copy(c);
+  intro = { t: 0, dur: 2.6, p0: new THREE.Vector3(c.x, 170 * viewScale, c.z + 300 * viewScale), p1: framed(home).pos };
+  camera.position.copy(intro.p0);
+}
 
 // ---------------------------------------------------------------------------
 // State + UI
 // ---------------------------------------------------------------------------
-const state = {
-  ms: minMs, playing: false, speed: 2, depthTarget: 1, depthMix: 1,
-  revealed: 0, prevRevealed: 0, relief: 1,
-};
 const slider = $('time-slider');
 const SLIDER_RES = 10000;
 const playIcon = $('play-icon');
@@ -243,6 +357,7 @@ const PAUSE_PATH = 'M7 5h4v14H7zM13 5h4v14h-4z';
 const msToSlider = (ms) => Math.round(((ms - minMs) / (maxMs - minMs)) * SLIDER_RES);
 const sliderToMs = (v) => minMs + (v / SLIDER_RES) * (maxMs - minMs);
 const fmtDate = (ms) => new Date(ms).toISOString().slice(0, 10);
+const fmtCoord = (lat, lon) => `${Math.abs(lat).toFixed(2)}°${lat < 0 ? 'S' : 'N'} ${Math.abs(lon).toFixed(2)}°${lon < 0 ? 'W' : 'E'}`;
 
 function setPlaying(on) {
   state.playing = on;
@@ -250,15 +365,14 @@ function setPlaying(on) {
 }
 
 // Shockwave rings draped on the terrain.
-let waves = [];
-const WAVE_MIN_MAG = 4.7;
 function spawnWaves(from, to, nowSec) {
+  const minMag = region.waveMinMag ?? 4.7;
   const start = Math.max(from, to - 60);
   for (let i = start; i < to; i++) {
     const q = quakeData[i];
-    if (q.mag < WAVE_MIN_MAG) continue;
+    if (q.mag < minMag) continue;
     const c = depthColor(q.depth);
-    const big = q.mag - WAVE_MIN_MAG;
+    const big = q.mag - minMag;
     waves.push({
       x: quakes.surface[i * 3], z: quakes.surface[i * 3 + 2], mag: q.mag, color: c,
       t0: nowSec, life: 2.2 + big * 0.5, maxR: 2.0 + big * 2.6, strength: Math.min(1, 0.55 + big * 0.12),
@@ -353,7 +467,6 @@ reliefSlider.addEventListener('input', () => {
   reliefTimer = setTimeout(rebuildOverlays, 160);
 });
 
-let homeTween = null;
 function flyTo(preset) {
   const f = framed(preset);
   homeTween = { t: 0, p0: camera.position.clone(), t0: controls.target.clone(), p1: f.pos, tt: f.target };
@@ -362,32 +475,62 @@ function flyHome() { flyTo(state.depthTarget ? HOME_DEPTH : HOME_SURFACE); }
 $('reset-view').addEventListener('click', flyHome);
 window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.code === 'Space') { e.preventDefault(); $('play-btn').click(); }
   else if (e.key === 'd' || e.key === 'D') setView(state.depthTarget ? 'surface' : 'depth');
   else if (e.key === 'r' || e.key === 'R') flyHome();
   else if (e.key === 'l' || e.key === 'L') { const c = $('labels-checkbox'); c.checked = !c.checked; c.dispatchEvent(new Event('change')); }
+  else if (/^[1-9]$/.test(e.key)) { const id = Object.keys(REGIONS)[Number(e.key) - 1]; if (id) switchRegion(id); }
 });
+
+// ---------------------------------------------------------------------------
+// Region switcher
+// ---------------------------------------------------------------------------
+const paint = () => Promise.race([
+  new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))),
+  new Promise((r) => setTimeout(r, 120)),
+]);
+
+function updateUrl(id) {
+  const u = new URL(location.href);
+  u.searchParams.set('region', id);
+  history.replaceState(null, '', u);
+}
+
+async function switchRegion(id) {
+  if (switching || id === regionId || !REGIONS[id]) return;
+  switching = true;
+  const prev = regionId;
+  for (const b of $('region-seg').querySelectorAll('button')) b.classList.toggle('on', b.dataset.region === id);
+  setPlaying(false);
+  if (!FAST) {
+    loader.classList.add('quick');
+    loader.style.display = '';
+    loader.classList.remove('done');
+    loaderBar.style.width = '0%';
+    reportProgress(`Loading ${REGIONS[id].label}…`);
+    await paint();
+  }
+  try {
+    const assets = await loadAssets(id);
+    reportProgress('Building the 3D map…');
+    await paint();
+    buildRegion(id, assets);
+    startIntro();
+    updateUrl(id);
+  } catch (err) {
+    console.error(err);
+    for (const b of $('region-seg').querySelectorAll('button')) b.classList.toggle('on', b.dataset.region === prev);
+  }
+  loaderBar.style.width = '100%';
+  loader.classList.add('done');
+  switching = false;
+}
 
 // ---------------------------------------------------------------------------
 // Timeline sparkline: strongest event per year
 // ---------------------------------------------------------------------------
 const spark = $('spark');
-const y0 = new Date(minMs).getUTCFullYear();
-const y1 = new Date(maxMs).getUTCFullYear();
-const yearMax = new Float32Array(y1 - y0 + 1);
-for (const q of quakeData) {
-  const y = new Date(q.ms).getUTCFullYear() - y0;
-  if (q.mag > yearMax[y]) yearMax[y] = q.mag;
-}
-const decades = $('decades');
-decades.style.position = 'relative';
-decades.style.height = '14px';
-for (let y = Math.ceil(y0 / 10) * 10; y <= y1; y += 10) {
-  const s = document.createElement('span');
-  s.textContent = y;
-  s.style.cssText = `position:absolute;transform:translateX(-50%);left:${((Date.UTC(y, 0, 1) - minMs) / (maxMs - minMs)) * 100}%`;
-  decades.appendChild(s);
-}
 function magColor(m) {
   if (m >= 7) return '#b0102a';
   if (m >= 6) return '#e5453a';
@@ -395,6 +538,7 @@ function magColor(m) {
   return '#9fb1bf';
 }
 function drawSpark() {
+  if (!yearMax.length) return;
   const dpr = Math.min(window.devicePixelRatio, 2);
   const w = spark.clientWidth, h = spark.clientHeight;
   if (!w) return;
@@ -424,7 +568,7 @@ function drawSpark() {
     const m = yearMax[i];
     if (!m) continue;
     const x = ((Date.UTC(y0 + i, 6, 1) - minMs) / (maxMs - minMs)) * w;
-    const bh = Math.max(2, ((m - 3.4) / (8.0 - 3.4)) * (h - 8));
+    const bh = Math.max(2, ((m - sparkMin) / (sparkMax - sparkMin)) * (h - 8));
     g.globalAlpha = x <= px ? 1 : 0.28;
     g.fillStyle = magColor(m);
     g.beginPath();
@@ -467,33 +611,56 @@ function updateTooltip() {
   if (i < 0) { tooltip.classList.add('hidden'); return; }
   const q = quakeData[i];
   tooltip.innerHTML = `<span class="tt-m">M ${q.mag.toFixed(1)}</span><b>${fmtDate(q.ms)}</b>
-    <small>${Math.round(q.depth)} km deep · ${q.lat.toFixed(2)}°N ${q.lon.toFixed(2)}°E</small><small>${q.place || ''}</small>`;
+    <small>${Math.round(q.depth)} km deep · ${fmtCoord(q.lat, q.lon)}</small><small>${q.place || ''}</small>`;
   tooltip.style.left = `${ptr.x}px`;
   tooltip.style.top = `${ptr.y}px`;
   tooltip.classList.remove('hidden');
 }
 
 // ---------------------------------------------------------------------------
-// Loop
+// Start-up
 // ---------------------------------------------------------------------------
-applyTime(minMs);
-quakes.setDepthMix(1);
-terrain.setXray(1);
+reportProgress('Loading terrain…');
+{
+  const file = await fetchJSON('data/regions.json');
+  REGIONS = file.regions;
+  const want = new URLSearchParams(location.search).get('region') || location.hash.slice(1);
+  const first = REGIONS[want] ? want : file.default;
+
+  const seg = $('region-seg');
+  for (const [id, r] of Object.entries(REGIONS)) {
+    const b = document.createElement('button');
+    b.dataset.region = id;
+    b.textContent = r.label;
+    b.addEventListener('click', () => switchRegion(id));
+    seg.appendChild(b);
+  }
+
+  const assets = await loadAssets(first);
+  reportProgress('Building the 3D map…');
+  await new Promise((r) => setTimeout(r, 30));
+  buildRegion(first, assets);
+  startIntro();
+}
+
 // Compile shaders and upload textures behind the loader so the reveal is smooth.
 // (`?fast` skips the wait; handy for automated screenshots in throttled tabs.)
-if (!location.search.includes('fast')) {
+if (!FAST) {
   reportProgress('Compiling shaders…');
   loaderBar.style.width = '97%';
   await renderer.compileAsync(scene, camera);
   renderer.render(scene, camera);
   labelRenderer.render(scene, camera);
-    // rAF can be throttled in background tabs; never let that block the reveal.
+  // rAF can be throttled in background tabs; never let that block the reveal.
   await Promise.race([new Promise((r) => requestAnimationFrame(r)), new Promise((r) => setTimeout(r, 300))]);
 }
 loaderBar.style.width = '100%';
-$('loader').classList.add('done');
-if (location.search.includes('fast')) $('loader').style.display = 'none';
+loader.classList.add('done');
+if (FAST) loader.style.display = 'none';
 
+// ---------------------------------------------------------------------------
+// Loop
+// ---------------------------------------------------------------------------
 const clock = new THREE.Clock();
 let frame = 0;
 const maxDpr = Math.min(window.devicePixelRatio, 2);
@@ -509,7 +676,6 @@ function adaptResolution(dt) {
     dpr = Math.min(maxDpr, dpr + 0.25); renderer.setPixelRatio(dpr); fastFrames = 0;
   }
 }
-let intro = { t: 0, dur: 2.6, p0: camera.position.clone(), p1: framed(HOME_DEPTH).pos };
 const compass = $('compass-rose');
 const easeOut = (t) => 1 - Math.pow(1 - t, 3);
 const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -569,4 +735,10 @@ function animate() {
 animate();
 
 // Debug / test hook.
-window.__atlas = { state, quakes, terrain, overlays, labelRenderer, camera, controls, scene, renderer, applyTime, setView, setPlaying, HOME: HOME_SURFACE, skipTweens() { if (intro) intro.t = 1; if (homeTween) homeTween.t = 1; } };
+window.__atlas = {
+  state, labelRenderer, camera, controls, scene, renderer, overlays,
+  get quakes() { return quakes; }, get terrain() { return terrain; }, get region() { return region; },
+  get notable() { return notable; }, get HOME() { return HOME_SURFACE; },
+  applyTime, setView, setPlaying, switchRegion,
+  skipTweens() { if (intro) intro.t = 1; if (homeTween) homeTween.t = 1; },
+};

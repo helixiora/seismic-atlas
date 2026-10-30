@@ -5,33 +5,9 @@ import {
   world, lonToX, latToZ, groundY, groundPoint, groundYAtXZ, V_SCALE,
 } from './projection.js';
 
-export const CITIES = [
-  { name: 'İstanbul', lon: 28.9784, lat: 41.0082, rank: 1 },
-  { name: 'İzmit', lon: 29.9408, lat: 40.7654, rank: 3 },
-  { name: 'Bolu', lon: 31.6096, lat: 40.7350, rank: 3 },
-  { name: 'Ankara', lon: 32.8597, lat: 39.9334, rank: 1 },
-  { name: 'İzmir', lon: 27.1428, lat: 38.4237, rank: 2 },
-  { name: 'Erzincan', lon: 39.4900, lat: 39.7500, rank: 2 },
-  { name: 'Karlıova', lon: 41.0167, lat: 39.2833, rank: 2, sub: 'NAF–EAF junction' },
-  { name: 'Malatya', lon: 38.3095, lat: 38.3552, rank: 2 },
-  { name: 'Kahramanmaraş', lon: 36.9226, lat: 37.5753, rank: 2 },
-  { name: 'Antakya', lon: 36.1590, lat: 36.2023, rank: 2 },
-  { name: 'Van', lon: 43.38, lat: 38.49, rank: 2 },
-  { name: 'Trabzon', lon: 39.7168, lat: 41.0015, rank: 3 },
-  { name: 'Sivas', lon: 37.0179, lat: 39.7477, rank: 3 },
-];
-
-export const SEAS = [
-  { name: 'Black Sea', lon: 34.2, lat: 42.05 },
-  { name: 'Aegean Sea', lon: 25.9, lat: 38.7 },
-  { name: 'Mediterranean Sea', lon: 32.0, lat: 35.55 },
-  { name: 'Sea of Marmara', lon: 28.1, lat: 40.72, small: true },
-];
-
-export const FAULT_NAMES = [
-  { name: 'North Anatolian Fault', lon: 35.4, lat: 41.2 },
-  { name: 'East Anatolian Fault', lon: 37.9, lat: 38.62 },
-];
+// 12°W / 140°E style labels.
+export const fmtLon = (lon) => `${Math.abs(lon)}°${lon < 0 ? 'W' : 'E'}`;
+export const fmtLat = (lat) => `${Math.abs(lat)}°${lat < 0 ? 'S' : 'N'}`;
 
 function label(text, cls, sub) {
   const el = document.createElement('div');
@@ -125,6 +101,13 @@ export class Overlays {
     this.group = new THREE.Group();
     scene.add(this.group);
     this.labels = [];       // { obj, kind, pos }
+    this.region = null;
+    this.viewScale = 1;     // camera distance scale of the region (bigger maps are viewed from further away)
+  }
+
+  setRegion(region, viewScale = 1) {
+    this.region = region;
+    this.viewScale = viewScale;
     this.build();
   }
 
@@ -147,13 +130,15 @@ export class Overlays {
 
   build() {
     this.clear();
+    if (!this.region) return;
+    const { cities = [], seas = [], faultNames = [] } = this.region;
     const { xMin, xMax, zMin, zMax } = world.extent;
     const { lonMin, lonMax, latMin, latMax } = world.meta;
 
     // City pins with leader lines.
     const pinMat = new THREE.MeshStandardMaterial({ color: 0x24313a, roughness: 0.5 });
     const lineMat = new THREE.LineBasicMaterial({ color: 0x24313a, transparent: true, opacity: 0.55, toneMapped: false });
-    for (const c of CITIES) {
+    for (const c of cities) {
       const base = groundPoint(c.lon, c.lat, 0.05);
       const topY = base.y + (c.rank === 1 ? 2.6 : 1.9);
       const pin = new THREE.Mesh(new THREE.SphereGeometry(c.rank === 1 ? 0.3 : 0.22, 14, 10), pinMat);
@@ -166,15 +151,15 @@ export class Overlays {
       this.add(l, 'city', l.position, c.rank);
     }
 
-    for (const s of SEAS) {
+    for (const s of seas) {
       const l = label(s.name.toUpperCase(), s.small ? 'sea small' : 'sea');
       const p = new THREE.Vector3(lonToX(s.lon), 0.4, latToZ(s.lat));
       l.position.copy(p);
       this.add(l, 'sea', p);
     }
-    for (const f of FAULT_NAMES) {
+    for (const f of faultNames) {
       const l = label(f.name, 'faultname');
-      const p = groundPoint(f.lon, f.lat, 1.4);
+      const p = groundPoint(f.lon, f.lat, 1.4, true);
       l.position.copy(p);
       this.add(l, 'fault', p);
     }
@@ -194,7 +179,7 @@ export class Overlays {
       for (let lat = latMin; lat <= latMax + 1e-6; lat += 0.1) pts.push(drape(lon, lat));
       addLine(lon % 5 === 0 ? gratPts.major : gratPts.minor, pts);
       if (lon % 5 === 0) {
-        const l = label(`${lon}°E`, 'tick');
+        const l = label(fmtLon(lon), 'tick');
         const p = new THREE.Vector3(lonToX(lon), 0, zMax + 2.4);
         l.position.copy(p);
         this.add(l, 'tick', p);
@@ -204,7 +189,7 @@ export class Overlays {
       const pts = [];
       for (let lon = lonMin; lon <= lonMax + 1e-6; lon += 0.1) pts.push(drape(lon, lat));
       addLine(lat % 5 === 0 ? gratPts.major : gratPts.minor, pts);
-      const l = label(`${lat}°N`, 'tick');
+      const l = label(fmtLat(lat), 'tick');
       const p = new THREE.Vector3(xMin - 2.6, 0, latToZ(lat));
       l.position.copy(p);
       this.add(l, 'tick', p);
@@ -261,7 +246,7 @@ export class Overlays {
         if (p.x < world.extent.xMin || p.x > world.extent.xMax || p.z < world.extent.zMin || p.z > world.extent.zMax) continue;
         if (groundYAtXZ(p.x, p.z) > p.y + 0.3 && p.y > -0.2) { hidden = true; break; }
       }
-      const d = camera.position.distanceTo(target);
+      const d = camera.position.distanceTo(target) / this.viewScale;
       const lod = l.kind !== 'city' ? 1 : l.rank === 1 ? 1 : l.rank === 2 ? THREE.MathUtils.clamp((205 - d) / 30, 0, 1) : THREE.MathUtils.clamp((150 - d) / 30, 0, 1);
       l.obj.element.style.opacity = hidden ? '0' : lod >= 1 ? '' : lod.toFixed(2);
     }

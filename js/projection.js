@@ -1,11 +1,8 @@
 import * as THREE from 'three';
 
-// Equirectangular projection centred on Anatolia, longitude scaled by cos(lat)
-// so horizontal distances are roughly to scale. 1 scene unit = 15 km.
-export const REF_LON = 35.0;
-export const REF_LAT = 39.0;
+// Equirectangular projection centred on the active region, longitude scaled by
+// cos(lat) so horizontal distances are roughly to scale. 1 scene unit = 15 km.
 export const KM_LAT = 111.0;
-export const KM_LON = 111.0 * Math.cos(REF_LAT * Math.PI / 180);
 export const H_SCALE = 1 / 15;   // scene units per km, horizontal
 export const V_SCALE = 1 / 5.5;  // scene units per km of hypocentre depth (~2.7x exaggerated)
 export const BASE_RELIEF = 0.0012; // scene units per metre of elevation (~18x exaggerated)
@@ -13,6 +10,9 @@ export const SEABED_COMPRESS = 0.3; // bathymetry is drawn at 30% of land relief
 export const MAX_DEPTH_KM = 200;
 
 export const world = {
+  refLon: 35.0,
+  refLat: 39.0,
+  kmLon: 111.0 * Math.cos(39.0 * Math.PI / 180), // km per degree of longitude at refLat
   relief: BASE_RELIEF,
   meta: null,
   heights: null, // Float32Array, row 0 = south, metres
@@ -20,14 +20,18 @@ export const world = {
   baseY: -MAX_DEPTH_KM * V_SCALE,
 };
 
-export const lonToX = (lon) => (lon - REF_LON) * KM_LON * H_SCALE;
-export const latToZ = (lat) => -(lat - REF_LAT) * KM_LAT * H_SCALE; // north = -z
-export const xToLon = (x) => REF_LON + x / (KM_LON * H_SCALE);
-export const zToLat = (z) => REF_LAT - z / (KM_LAT * H_SCALE);
+export const lonToX = (lon) => (lon - world.refLon) * world.kmLon * H_SCALE;
+export const latToZ = (lat) => -(lat - world.refLat) * KM_LAT * H_SCALE; // north = -z
+export const xToLon = (x) => world.refLon + x / (world.kmLon * H_SCALE);
+export const zToLat = (z) => world.refLat - z / (KM_LAT * H_SCALE);
 
-export function setTerrainData(meta, heights) {
+// Switch the world to a new region: `ref` is the [lon, lat] the map is centred on.
+export function setTerrainData(meta, heights, ref) {
   world.meta = meta;
   world.heights = heights;
+  world.refLon = ref ? ref[0] : (meta.lonMin + meta.lonMax) / 2;
+  world.refLat = ref ? ref[1] : (meta.latMin + meta.latMax) / 2;
+  world.kmLon = 111.0 * Math.cos(world.refLat * Math.PI / 180);
   world.extent = {
     xMin: lonToX(meta.lonMin), xMax: lonToX(meta.lonMax),
     zMin: latToZ(meta.latMax), zMax: latToZ(meta.latMin),

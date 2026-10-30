@@ -234,6 +234,15 @@ export class Quakes {
     this.updatePositions();
   }
 
+  dispose() {
+    for (const o of [this.stems, this.orbs, this.halos]) {
+      this.scene.remove(o);
+      o.geometry.dispose();
+      o.material.dispose();
+      if (o.dispose) o.dispose();
+    }
+  }
+
   // Recompute surface anchor points (call after the relief changes).
   updatePositions() {
     const m = new THREE.Matrix4();

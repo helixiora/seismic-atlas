@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { world, lonToX, latToZ, V_SCALE, KM_LON, KM_LAT, H_SCALE } from './projection.js';
+import { world, lonToX, latToZ, V_SCALE, KM_LAT, H_SCALE } from './projection.js';
 
 export const MAX_WAVES = 24;
 
@@ -72,7 +72,9 @@ function mulberry(seed) {
   };
 }
 
+let waterNormalsCache = null;
 function buildWaterNormals() {
+  if (waterNormalsCache) return waterNormalsCache;
   const S = 256;
   const data = new Uint8Array(S * S * 4);
   const hgt = new Float32Array(S * S);
@@ -109,6 +111,7 @@ function buildWaterNormals() {
   tex.magFilter = THREE.LinearFilter;
   tex.generateMipmaps = true;
   tex.needsUpdate = true;
+  waterNormalsCache = tex;
   return tex;
 }
 
@@ -140,13 +143,25 @@ export class Terrain {
       uHeightTex: { value: this.heightTex },
       uRelief: { value: world.relief },
       uTexel: { value: new THREE.Vector2(1 / w, 1 / h) },
-      uDx: { value: ((world.meta.lonMax - world.meta.lonMin) / (w - 1)) * KM_LON * H_SCALE },
+      uDx: { value: ((world.meta.lonMax - world.meta.lonMin) / (w - 1)) * world.kmLon * H_SCALE },
       uDz: { value: ((world.meta.latMax - world.meta.latMin) / (h - 1)) * KM_LAT * H_SCALE },
     };
     this.buildTerrain();
     this.buildWater();
     this.buildWalls();
     this.setXray(0);
+  }
+
+  // Free everything this region allocated (the shared water normal map stays cached).
+  dispose() {
+    this.scene.remove(this.group);
+    this.group.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) o.material.dispose();
+      if (o.customDepthMaterial) o.customDepthMaterial.dispose();
+    });
+    this.heightTex.dispose();
+    this.albedo.dispose();
   }
 
   setRelief(r) {
@@ -294,7 +309,7 @@ export class Terrain {
 
   buildWater() {
     const { xMin, xMax, zMin, zMax } = world.extent;
-    this.waterNormals.repeat.set(26, 10);
+    this.waterNormals.repeat.set((xMax - xMin) / 4.4, (zMax - zMin) / 5.5);
     this.waterMat = new THREE.MeshPhysicalMaterial({
       color: 0xa9dbe6,
       roughness: 0.07,

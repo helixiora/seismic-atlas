@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Anatolian Fault — Seismic Atlas</title>
+<title>Seismic Atlas</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -33,24 +33,25 @@
     <header id="brand">
       <div class="brand-mark" aria-hidden="true"></div>
       <div>
-        <h1>Anatolian Fault <span>Seismic Atlas</span></h1>
-        <p id="subtitle">M ≥ 3.5 earthquakes, 1904 – 2026 · USGS ANSS · SRTM relief &amp; bathymetry</p>
+        <h1 id="brand-title">Seismic Atlas</h1>
+        <p id="subtitle">USGS ANSS · SRTM relief &amp; bathymetry</p>
       </div>
     </header>
+
+    <nav id="regions" class="card" aria-label="Region">
+      <div class="seg" id="region-seg" role="group"></div>
+    </nav>
 
     <aside id="side">
       <section class="card" id="legend">
         <div class="card-title">Magnitude</div>
-        <div class="mag-row">
-          <span><i class="dot" style="--s:7px"></i>3.5</span>
-          <span><i class="dot" style="--s:13px"></i>5.5</span>
-          <span><i class="dot" style="--s:22px"></i>7.5</span>
-        </div>
+        <div class="mag-row" id="mag-row"></div>
         <div class="card-title">Hypocentre depth</div>
         <div class="depth-bar"></div>
         <div class="depth-scale"><span>0</span><span>30</span><span>100</span><span>200 km</span></div>
         <div class="card-title">Active faults</div>
-        <div class="fault-row"><i class="fault-swatch"></i><span>GEM strike-slip, by slip rate</span></div>
+        <div class="fault-row"><i class="fault-swatch"></i><span id="fault-legend">GEM active faults, by slip rate</span></div>
+        <p class="credits" id="region-note" hidden></p>
         <p class="credits">Earthquakes: USGS ANSS ComCat. Faults: GEM Global Active Faults (CC BY-SA 4.0). Relief &amp; bathymetry: Mapzen / AWS Terrain Tiles (SRTM, GEBCO and others).</p>
       </section>
 
