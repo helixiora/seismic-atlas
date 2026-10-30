@@ -1,6 +1,6 @@
 # Seismic Atlas
 
-Created by [Helixiora](https://helixiora.com). Live: https://walterheck.github.io/seismic-atlas/
+Created by [Helixiora](https://helixiora.com). Live: https://helixiora.github.io/seismic-atlas/
 
 Interactive 3D maps of earthquakes with a playable timeline, a surface view and a depth view. Switch between regions with the pills at the top (or keys `1`–`3`, or `?region=turkey|california|japan`):
 
