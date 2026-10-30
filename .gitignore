@@ -1,0 +1,9 @@
+# local-only material
+papers/
+data/*.csv
+.claude/
+.DS_Store
+
+# tooling
+.venv/
+__pycache__/
