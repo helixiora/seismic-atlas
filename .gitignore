@@ -7,3 +7,8 @@ data/*.csv
 # tooling
 .venv/
 __pycache__/
+
+# secrets
+.env
+.env.*
+*.pem
