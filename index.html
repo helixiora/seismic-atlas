@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Anatolian Fault — Seismic Atlas</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:ital,wght@0,500;1,400&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+  <div id="scene-container"></div>
+  <div id="vignette"></div>
+
+  <div id="loader">
+    <div class="loader-inner">
+      <div class="loader-mark"></div>
+      <div id="loader-text">Preparing terrain…</div>
+      <div class="loader-bar"><i id="loader-bar"></i></div>
+    </div>
+  </div>
+
+  <div id="hud">
+    <header id="brand">
+      <div class="brand-mark" aria-hidden="true"></div>
+      <div>
+        <h1>Anatolian Fault <span>Seismic Atlas</span></h1>
+        <p id="subtitle">M ≥ 3.5 earthquakes, 1904 – 2026 · USGS ANSS · SRTM relief &amp; bathymetry</p>
+      </div>
+    </header>
+
+    <aside id="side">
+      <section class="card" id="legend">
+        <div class="card-title">Magnitude</div>
+        <div class="mag-row">
+          <span><i class="dot" style="--s:7px"></i>3.5</span>
+          <span><i class="dot" style="--s:13px"></i>5.5</span>
+          <span><i class="dot" style="--s:22px"></i>7.5</span>
+        </div>
+        <div class="card-title">Hypocentre depth</div>
+        <div class="depth-bar"></div>
+        <div class="depth-scale"><span>0</span><span>30</span><span>100</span><span>200 km</span></div>
+        <div class="card-title">Active faults</div>
+        <div class="fault-row"><i class="fault-swatch"></i><span>GEM strike-slip, by slip rate</span></div>
+        <p class="credits">Earthquakes: USGS ANSS ComCat. Faults: GEM Global Active Faults (CC BY-SA 4.0). Relief &amp; bathymetry: Mapzen / AWS Terrain Tiles (SRTM, GEBCO and others).</p>
+      </section>
+
+      <section class="card" id="settings">
+        <div class="seg" id="view-seg" role="group" aria-label="View">
+          <button data-view="surface">Surface</button>
+          <button data-view="depth" class="on">Depth</button>
+        </div>
+        <label class="row"><span>Relief</span>
+          <input id="relief-slider" type="range" min="0.4" max="2.2" step="0.05" value="1" />
+          <output id="relief-out">1.0×</output>
+        </label>
+        <label class="row switch"><span>Labels</span><input type="checkbox" id="labels-checkbox" checked /><i></i></label>
+        <label class="row switch"><span>Fade older events</span><input type="checkbox" id="fade-checkbox" /><i></i></label>
+        <button id="reset-view" class="ghost">Reset view</button>
+        <p class="hint"><kbd>Space</kbd> play / pause · <kbd>D</kbd> depth view<br /><kbd>R</kbd> reset camera · <kbd>L</kbd> labels</p>
+      </section>
+    </aside>
+
+    <div id="compass" aria-hidden="true"><div id="compass-rose"><b>N</b></div></div>
+
+    <div id="event-card" class="hidden"></div>
+    <div id="tooltip" class="hidden"></div>
+
+    <footer id="dock">
+      <div class="dock-top">
+        <button id="play-btn" class="play" title="Play / pause (space)">
+          <svg viewBox="0 0 24 24" width="18" height="18"><path id="play-icon" d="M8 5v14l11-7z" fill="currentColor"/></svg>
+        </button>
+        <button id="reset-btn" class="icon" title="Back to 1904">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 6h2v12H6zM9.5 12l8.5 6V6z" fill="currentColor"/></svg>
+        </button>
+        <div id="date-readout">1904-08-11</div>
+        <div id="event-count">0 / 0 events</div>
+        <div class="spacer"></div>
+        <div class="seg small" id="speed-seg" role="group" aria-label="Speed">
+          <button data-speed="0.5">0.5</button>
+          <button data-speed="2" class="on">2</button>
+          <button data-speed="8">8</button>
+          <button data-speed="25">25</button>
+          <span class="unit">yr/s</span>
+        </div>
+      </div>
+      <div class="timeline">
+        <canvas id="spark" height="64"></canvas>
+        <input id="time-slider" type="range" min="0" max="10000" value="0" step="1" aria-label="Timeline" />
+      </div>
+      <div class="decades" id="decades"></div>
+    </footer>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
